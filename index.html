@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安全隐患大家来找茬</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);min-height:100vh;color:#fff;overflow-x:hidden}
+.header{text-align:center;padding:20px;background:rgba(0,0,0,.3);border-bottom:2px solid #e94560}
+.header h1{font-size:28px;color:#e94560;text-shadow:0 0 10px rgba(233,69,96,.5)}
+.header p{color:#aaa;margin-top:5px;font-size:14px}
+.stats{display:flex;justify-content:center;gap:30px;padding:15px;background:rgba(0,0,0,.2)}
+.stat{text-align:center}
+.stat-label{font-size:12px;color:#888}
+.stat-value{font-size:24px;font-weight:bold;color:#e94560}
+.game-container{max-width:1200px;margin:20px auto;padding:0 20px}
+.scene-title{text-align:center;margin-bottom:15px;font-size:18px;color:#ffd700}
+.panels{display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.panel{flex:1;min-width:280px;max-width:550px;background:rgba(0,0,0,.4);border-radius:12px;padding:15px;border:2px solid #333;position:relative}
+.panel-label{text-align:center;margin-bottom:10px;font-size:14px;color:#888;font-weight:bold}
+.scene-canvas{width:100%;border-radius:8px;cursor:crosshair;display:block}
+.hint-text{text-align:center;margin-top:15px;font-size:14px;color:#aaa}
+.hint-text .danger{color:#e94560;font-weight:bold}
+.controls{display:flex;justify-content:center;gap:15px;margin-top:20px;flex-wrap:wrap}
+.btn{padding:12px 30px;border:none;border-radius:25px;font-size:16px;font-weight:bold;cursor:pointer;transition:all .3s}
+.btn-primary{background:linear-gradient(135deg,#e94560,#c23152);color:#fff}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 5px 20px rgba(233,69,96,.4)}
+.btn-secondary{background:linear-gradient(135deg,#0f3460,#16213e);color:#fff;border:1px solid #333}
+.btn-secondary:hover{background:linear-gradient(135deg,#16213e,#0f3460);transform:translateY(-2px)}
+.controls .btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.timer-bar{height:4px;background:#333;margin:10px auto;max-width:600px;border-radius:2px;overflow:hidden}
+.timer-fill{height:100%;background:linear-gradient(90deg,#00ff88,#ffd700,#e94560);transition:width 1s linear;border-radius:2px}
+.level-progress{display:flex;justify-content:center;gap:8px;margin-top:10px}
+.level-dot{width:12px;height:12px;border-radius:50%;background:#333;transition:all .3s}
+.level-dot.completed{background:#00ff88}
+.level-dot.current{background:#ffd700;box-shadow:0 0 8px rgba(255,215,0,.5)}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:100;justify-content:center;align-items:center}
+.modal.active{display:flex}
+.modal-content{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:40px;border-radius:20px;text-align:center;border:2px solid #e94560;max-width:500px;margin:20px}
+.modal-content h2{color:#ffd700;margin-bottom:15px}
+.modal-content p{color:#ccc;margin-bottom:20px;line-height:1.8}
+.safety-tip{background:rgba(233,69,96,.1);border-left:3px solid #e94560;padding:15px;margin:15px 0;text-align:left;border-radius:0 8px 8px 0}
+.safety-tip .tip-title{color:#e94560;font-weight:bold;margin-bottom:5px}
+.safety-tip .tip-content{color:#aaa;font-size:13px;line-height:1.6}
+.found-list{margin:10px 0;text-align:left}
+.found-list div{padding:4px 0;color:#ccc;font-size:14px}
+.found-list div::before{content:'✅ '}
+.missed-list div{padding:4px 0;color:#e94560;font-size:14px}
+.missed-list div::before{content:'❌ '}
+.found-marker{position:absolute;border:3px solid #00ff88;border-radius:50%;pointer-events:none;animation:pulse 1.2s ease-out forwards;z-index:10}
+@keyframes pulse{0%{transform:scale(.5);opacity:1;box-shadow:0 0 20px rgba(0,255,136,.6)}100%{transform:scale(1.8);opacity:0}}
+.wrong-marker{position:absolute;border:3px solid #ff4444;border-radius:50%;pointer-events:none;animation:wrongPulse .8s ease-out forwards;z-index:10}
+@keyframes wrongPulse{0%{transform:scale(.3);opacity:1}100%{transform:scale(1.5);opacity:0}}
+.desc-popup{position:absolute;background:rgba(0,0,0,.9);color:#00ff88;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:bold;pointer-events:none;white-space:nowrap;z-index:20;border:1px solid #00ff88;animation:fadeUp 1.5s ease-out forwards}
+@keyframes fadeUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-30px)}}
+@media(max-width:768px){.panels{flex-direction:column;align-items:center}.panel{max-width:100%}.header h1{font-size:20px}.stats{gap:15px}.stat-value{font-size:18px}.modal-content{padding:25px}}
+</style>
+</head>
+<body>
+<div class="header"><h1>⚠️ 安全隐患大家来找茬 ⚠️</h1><p>找出两张图中的安全隐患差异，提升安全意识！</p></div>
+<div class="stats">
+  <div class="stat"><div class="stat-label">关卡</div><div class="stat-value" id="level">1/3</div></div>
+  <div class="stat"><div class="stat-label">得分</div><div class="stat-value" id="score">0</div></div>
+  <div class="stat"><div class="stat-label">已找到</div><div class="stat-value" id="found">0/5</div></div>
+  <div class="stat"><div class="stat-label">剩余时间</div><div class="stat-value" id="timer">60</div></div>
+</div>
+<div class="timer-bar"><div class="timer-fill" id="timerBar" style="width:100%"></div></div>
+<div class="level-progress" id="levelProgress">
+  <div class="level-dot current"></div><div class="level-dot"></div><div class="level-dot"></div>
+</div>
+<div class="game-container">
+  <div class="scene-title" id="sceneTitle">🏭 场景一：施工现场</div>
+  <div class="panels">
+    <div class="panel" id="safePanel"><div class="panel-label">✅ 安全示范图</div><canvas id="safeCanvas" class="scene-canvas" width="520" height="380"></canvas></div>
+    <div class="panel" id="dangerPanel"><div class="panel-label">🔍 找出隐患（点击此处）</div><canvas id="dangerCanvas" class="scene-canvas" width="520" height="380"></canvas></div>
+  </div>
+  <div class="hint-text" id="hintText">点击右侧"隐患图"中你发现的 <span class="danger">安全隐患</span></div>
+  <div class="controls">
+    <button class="btn btn-secondary" id="hintBtn" onclick="useHint()" disabled>💡 提示 (-50分)</button>
+    <button class="btn btn-secondary" id="restartBtn" onclick="restartLevel()" disabled>🔄 重来本关</button>
+    <button class="btn btn-primary" id="startBtn" onclick="startGame()">🎮 开始游戏</button>
+  </div>
+</div>
+
+<div class="modal active" id="startModal">
+  <div class="modal-content">
+    <h2>⚠️ 安全隐患大家来找茬</h2>
+    <p>在施工现场、工厂车间、办公室等场景中，<br>找出隐藏的安全隐患差异！<br><br>📌 每关有 <b>5处</b> 安全隐患<br>⏱️ 限时 <b>60秒</b><br>🎯 点击右侧"隐患图"差异处得分<br>💡 提示功能每次扣50分<br><br>安全无小事，防患于未然！</p>
+    <button class="btn btn-primary" onclick="startGame()">🎮 开始游戏</button>
+  </div>
+</div>
+
+<div class="modal" id="winModal">
+  <div class="modal-content">
+    <h2>🎉 恭喜过关！</h2>
+    <p id="winText"></p>
+    <div class="safety-tip"><div class="tip-title">📋 安全知识小课堂</div><div class="tip-content" id="safetyTip"></div></div>
+    <button class="btn btn-primary" id="nextBtn" onclick="nextLevel()">下一关 →</button>
+  </div>
+</div>
+
+<div class="modal" id="failModal">
+  <div class="modal-content">
+    <h2>⏰ 时间到！</h2>
+    <p id="failText"></p>
+    <div class="safety-tip"><div class="tip-title">📋 安全知识小课堂</div><div class="tip-content" id="failTip"></div></div>
+    <button class="btn btn-primary" onclick="retryLevel()">🔄 再试一次</button>
+  </div>
+</div>
+
+<div class="modal" id="completeModal">
+  <div class="modal-content">
+    <h2>🏆 恭喜通关！</h2>
+    <p id="completeText"></p>
+    <button class="btn btn-primary" onclick="restartAll()">🔄 重新挑战</button>
+  </div>
+</div>
+
+<script>
+const W=520,H=380;
+let currentLevel=0,totalScore=0,foundCount=0,timerInterval=null,timeLeft=60,hintsUsed=0;
+let foundDiffs=[];
+const safeCanvas=document.getElementById('safeCanvas');
+const dangerCanvas=document.getElementById('dangerCanvas');
+const safeCtx=safeCanvas.getContext('2d');
+const dangerCtx=dangerCanvas.getContext('2d');
+
+// =========== DRAWING HELPERS ===========
+function drawSky(ctx,from,to){const g=ctx.createLinearGradient(0,from,0,to);g.addColorStop(0,'#87CEEB');g.addColorStop(1,'#B0E0E6');ctx.fillStyle=g;ctx.fillRect(0,from,W,to-from)}
+function drawGround(ctx,y,color){ctx.fillStyle=color||'#8B7355';ctx.fillRect(0,y,W,H-y)}
+function drawRect(ctx,x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
+function drawCircle(ctx,x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function drawText(ctx,x,y,text,color,size,bold){ctx.fillStyle=color;ctx.font=(bold?'bold ':'')+size+'px Microsoft YaHei,sans-serif';ctx.fillText(text,x,y)}
+
+function drawPerson(ctx,x,y,scale,helmetColor,vestColor,hasHarness,hasSmoke,hasGloves){
+  const s=scale||1;
+  ctx.save();ctx.translate(x,y);
+  // Head
+  drawCircle(ctx,0,-50*s,10*s,'#FFDAB9');
+  // Helmet
+  if(helmetColor){ctx.fillStyle=helmetColor;ctx.beginPath();ctx.arc(0,-53*s,12*s,Math.PI,0);ctx.fill();ctx.fillRect(-12*s,-53*s,24*s,4*s)}
+  else{drawCircle(ctx,0,-55*s,10*s,'#333')}// hair
+  // Eyes
+  drawCircle(ctx,-3*s,-50*s,1.5*s,'#333');drawCircle(ctx,3*s,-50*s,1.5*s,'#333');
+  // Body/vest
+  ctx.fillStyle=vestColor||'#3366CC';
+  ctx.fillRect(-8*s,-40*s,16*s,25*s);
+  if(vestColor==='#FF6600'){ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(-6*s,-35*s);ctx.lineTo(6*s,-35*s);ctx.stroke();ctx.beginPath();ctx.moveTo(-6*s,-30*s);ctx.lineTo(6*s,-30*s);ctx.stroke()}
+  // Arms
+  ctx.strokeStyle='#FFDAB9';ctx.lineWidth=3*s;
+  ctx.beginPath();ctx.moveTo(-8*s,-38*s);ctx.lineTo(-14*s,-22*s);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(8*s,-38*s);ctx.lineTo(14*s,-22*s);ctx.stroke();
+  // Gloves
+  if(hasGloves){drawCircle(ctx,-14*s,-22*s,3*s,'#333');drawCircle(ctx,14*s,-22*s,3*s,'#333')}
+  // Legs
+  ctx.strokeStyle='#444';ctx.lineWidth=3*s;
+  ctx.beginPath();ctx.moveTo(-4*s,-15*s);ctx.lineTo(-6*s,0);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(4*s,-15*s);ctx.lineTo(6*s,0);ctx.stroke();
+  // Shoes
+  ctx.fillStyle='#333';ctx.fillRect(-9*s,-3*s,7*s,4*s);ctx.fillRect(2*s,-3*s,7*s,4*s);
+  // Harness
+  if(hasHarness){ctx.strokeStyle='#FFD700';ctx.lineWidth=2*s;ctx.beginPath();ctx.moveTo(-8*s,-40*s);ctx.lineTo(0,-55*s);ctx.lineTo(8*s,-40*s);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-40*s);ctx.lineTo(-2*s,-15*s);ctx.stroke()}
+  // Smoke
+  if(hasSmoke){ctx.fillStyle='rgba(150,150,150,0.6)';drawCircle(ctx,12*s,-55*s,4*s,'rgba(150,150,150,0.5)');drawCircle(ctx,18*s,-62*s,5*s,'rgba(150,150,150,0.4)');drawCircle(ctx,22*s,-70*s,6*s,'rgba(150,150,150,0.3)');ctx.strokeStyle='#aaa';ctx.lineWidth=1.5*s;ctx.beginPath();ctx.moveTo(8*s,-48*s);ctx.lineTo(12*s,-55*s);ctx.stroke()}
+  ctx.restore();
+}
+
+function drawFireExt(ctx,x,y){
+  drawRect(ctx,x,y,16,30,'#CC0000');drawRect(ctx,x-2,y-4,20,6,'#999');drawCircle(ctx,x+8,y-1,3,'#333');drawRect(ctx,x+2,y+8,12,10,'#fff');drawText(ctx,x+4,y+17,'灭火',333,'7px',true);
+}
+
+// =========== LEVEL 1: CONSTRUCTION SITE ===========
+const level1={
+  title:'🏭 场景一：施工现场',
+  tip:'施工现场必须正确佩戴安全帽、系好安全带！严禁在施工区域吸烟。电缆应使用电缆沟或架空敷设，严禁随地拖拽。临边、洞口必须设置防护栏杆和安全网。安全无小事，切莫大意！',
+  diffs:[
+    {x:145,y:155,r:22,desc:'工人未佩戴安全帽！',points:20},
+    {x:370,y:155,r:22,desc:'施工区域违规吸烟！',points:20},
+    {x:45,y:170,r:28,desc:'临边作业无防护栏杆！',points:25},
+    {x:220,y:85,r:20,desc:'高空作业未系安全带！',points:25},
+    {x:400,y:200,r:25,desc:'电缆随地乱放，易绊倒漏电！',points:20}
+  ],
+  drawSafe(ctx){
+    drawSky(ctx,0,150);drawGround(ctx,200);
+    // Building frame
+    ctx.fillStyle='#666';ctx.fillRect(100,50,200,155);
+    ctx.strokeStyle='#444';ctx.lineWidth=2;
+    for(let y=60;y<200;y+=25){ctx.beginPath();ctx.moveTo(100,y);ctx.lineTo(300,y);ctx.stroke()}
+    for(let x=100;x<=300;x+=40){ctx.beginPath();ctx.moveTo(x,50);ctx.lineTo(x,205);ctx.stroke()}
+    // Crane
+    drawRect(ctx,280,10,10,200,'#FFD700');drawRect(ctx,200,10,100,8,'#FFD700');
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(210,18);ctx.lineTo(210,60);ctx.stroke();
+    drawRect(ctx,200,60,20,12,'#888');
+    // Worker 1 (safe: helmet + vest)
+    drawPerson(ctx,145,198,1,'#FFD700','#FF6600');
+    // Worker 2 (safe: helmet + vest, no smoke)
+    drawPerson(ctx,370,198,1,'#FFD700','#FF6600');
+    // Worker on scaffold (safe: helmet + harness)
+    drawPerson(ctx,220,120,0.8,'#FFD700','#FF6600',true);
+    // Scaffold
+    drawRect(ctx,180,110,80,5,'#8B4513');ctx.fillStyle='#A0522D';ctx.fillRect(185,115,4,85);ctx.fillRect(255,115,4,85);
+    // Guardrail
+    drawRect(ctx,0,188,90,5,'#FF6600');
+    drawRect(ctx,10,170,6,22,'#FFD700');drawRect(ctx,40,170,6,22,'#FFD700');drawRect(ctx,70,170,6,22,'#FFD700');
+    drawText(ctx,17,187,'⚠','#fff','8px',true);drawText(ctx,47,187,'⚠','#fff','8px',true);drawText(ctx,77,187,'⚠','#fff','8px',true);
+    // Cable tray (proper)
+    drawRect(ctx,350,210,120,8,'#444');drawRect(ctx,350,210,120,3,'#555');
+    drawRect(ctx,365,218,10,6,'#333');drawRect(ctx,415,218,10,6,'#333');drawRect(ctx,455,218,10,6,'#333');
+    // Fire extinguisher
+    drawFireExt(ctx,480,170);
+    // Safety sign
+    drawRect(ctx,340,90,80,50,'#FFD700');ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(340,90,80,50);
+    drawText(ctx,350,108,'#施工区域','#333','9px',true);drawText(ctx,347,125,'#佩戴安全帽','#333','9px',true);
+    // Sun
+    drawCircle(ctx,480,30,20,'#FFD700');drawCircle(ctx,480,30,15,'#FFEC8B');
+  },
+  drawDanger(ctx){
+    drawSky(ctx,0,150);drawGround(ctx,200);
+    ctx.fillStyle='#666';ctx.fillRect(100,50,200,155);
+    ctx.strokeStyle='#444';ctx.lineWidth=2;
+    for(let y=60;y<200;y+=25){ctx.beginPath();ctx.moveTo(100,y);ctx.lineTo(300,y);ctx.stroke()}
+    for(let x=100;x<=300;x+=40){ctx.beginPath();ctx.moveTo(x,50);ctx.lineTo(x,205);ctx.stroke()}
+    drawRect(ctx,280,10,10,200,'#FFD700');drawRect(ctx,200,10,100,8,'#FFD700');
+    ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(210,18);ctx.lineTo(210,60);ctx.stroke();
+    drawRect(ctx,200,60,20,12,'#888');
+    // DIFF 1: Worker without helmet
+    drawPerson(ctx,145,198,1,null,'#FF6600');
+    // DIFF 2: Worker smoking
+    drawPerson(ctx,370,198,1,'#FFD700','#FF6600',false,true);
+    // DIFF 3: NO guardrail (just don't draw it)
+    // DIFF 4: Worker no harness
+    drawPerson(ctx,220,120,0.8,'#FFD700','#FF6600',false);
+    drawRect(ctx,180,110,80,5,'#8B4513');drawRect(ctx,185,115,4,85,'#A0522D');drawRect(ctx,255,115,4,85,'#A0522D');
+    // DIFF 5: Cables messy on ground
+    ctx.strokeStyle='#FFD700';ctx.lineWidth=3;ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(360,205);ctx.quadraticCurveTo(380,220,400,210);ctx.quadraticCurveTo(420,200,450,215);ctx.quadraticCurveTo(470,225,500,205);ctx.stroke();
+    ctx.strokeStyle='#333';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(355,208);ctx.quadraticCurveTo(375,230,410,212);ctx.quadraticCurveTo(440,195,490,220);ctx.stroke();
+    drawRect(ctx,340,90,80,50,'#FFD700');ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(340,90,80,50);
+    drawText(ctx,350,108,'#施工区域','#333','9px',true);drawText(ctx,347,125,'#佩戴安全帽','#333','9px',true);
+    drawFireExt(ctx,480,170);
+    drawCircle(ctx,480,30,20,'#FFD700');drawCircle(ctx,480,30,15,'#FFEC8B');
+  }
+};
+
+// =========== LEVEL 2: FACTORY WORKSHOP ===========
+const level2={
+  title:'🏭 场景二：工厂车间',
+  tip:'操作旋转机床严禁戴手套，防止卷入！电箱门必须关闭上锁。消防通道和安全出口严禁堆放杂物。化学品必须分类存放并张贴标识。灭火器要定期检查，确保在有效期内！',
+  diffs:[
+    {x:120,y:250,r:22,desc:'操作旋转设备违规戴手套！',points:25},
+    {x:420,y:130,r:24,desc:'电箱门未关，有触电危险！',points:20},
+    {x:50,y:85,r:28,desc:'消防通道被杂物堵塞！',points:25},
+    {x:390,y:270,r:22,desc:'化学品未张贴标识分类！',points:20},
+    {x:490,y:240,r:22,desc:'灭火器已过期失效！',points:20}
+  ],
+  drawSafe(ctx){
+    // Floor
+    drawRect(ctx,0,0,W,H,'#B8B8B8');
+    ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.setLineDash([10,5]);
+    ctx.beginPath();ctx.moveTo(0,300);ctx.lineTo(W,300);ctx.stroke();ctx.setLineDash([]);
+    // Machine 1 (lathe)
+    drawRect(ctx,60,200,120,100,'#4A6FA5');drawRect(ctx,80,180,80,25,'#3A5F95');
+    drawCircle(ctx,120,200,18,'#888');ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.stroke();
+    drawText(ctx,105,208,'旋转','#fff','8px',true);
+    // Operator (no gloves)
+    drawPerson(ctx,120,290,0.9,'#FFD700','#3366CC');
+    // Machine 2
+    drawRect(ctx,250,200,100,100,'#5A7F55');drawRect(ctx,260,170,80,35,'#4A6F45');drawRect(ctx,270,185,60,15,'#888');
+    // Electrical box (closed)
+    drawRect(ctx,400,110,50,60,'#FF4444');drawRect(ctx,400,110,50,8,'#CC0000');ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(400,110,50,60);
+    drawText(ctx,403,140,'有电','#fff','9px',true);drawText(ctx,403,155,'危险','#fff','9px',true);
+    drawRect(ctx,398,108,54,5,'#ddd');drawRect(ctx,398,108,5,64,'#ddd');
+    // Fire exit (clear)
+    drawRect(ctx,15,50,70,30,'#00AA00');drawText(ctx,20,70,'安全出口→','#fff','12px',true);
+    // Chemical cabinet (labeled)
+    drawRect(ctx,350,250,80,50,'#8B4513');drawRect(ctx,355,255,70,40,'#A0522D');
+    drawText(ctx,362,268,'化学品柜','#fff','8px',true);
+    drawRect(ctx,355,275,20,15,'#FFD700');drawText(ctx,360,285,'危','#333','7px',true);
+    drawRect(ctx,380,275,20,15,'#FF0000');drawText(ctx,383,285,'腐','#fff','7px',true);
+    drawRect(ctx,405,275,15,15,'#0066FF');drawText(ctx,406,285,'毒','#fff','7px',true);
+    // Fire extinguisher (valid)
+    drawFireExt(ctx,485,230);
+    drawText(ctx,487,268,'有效','#00AA00','6px',true);
+    // Conveyor
+    drawRect(ctx,0,310,W,15,'#444');for(let x=0;x<W;x+=20){drawRect(ctx,x,310,10,15,'#555')}
+  },
+  drawDanger(ctx){
+    drawRect(ctx,0,0,W,H,'#B8B8B8');
+    ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.setLineDash([10,5]);
+    ctx.beginPath();ctx.moveTo(0,300);ctx.lineTo(W,300);ctx.stroke();ctx.setLineDash([]);
+    drawRect(ctx,60,200,120,100,'#4A6FA5');drawRect(ctx,80,180,80,25,'#3A5F95');
+    drawCircle(ctx,120,200,18,'#888');ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.stroke();
+    drawText(ctx,105,208,'旋转','#fff','8px',true);
+    // DIFF 1: Worker with gloves
+    drawPerson(ctx,120,290,0.9,'#FFD700','#3366CC',false,false,true);
+    drawRect(ctx,250,200,100,100,'#5A7F55');drawRect(ctx,260,170,80,35,'#4A6F45');drawRect(ctx,270,185,60,15,'#888');
+    // DIFF 2: Electrical box open
+    drawRect(ctx,400,110,50,60,'#FF4444');drawRect(ctx,400,110,50,8,'#CC0000');ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.strokeRect(400,110,50,60);
+    drawText(ctx,403,140,'有电','#fff','9px',true);drawText(ctx,403,155,'危险','#fff','9px',true);
+    drawRect(ctx,450,108,20,64,'#ddd');ctx.strokeStyle='#999';ctx.lineWidth=1;ctx.strokeRect(450,108,20,64);
+    ctx.strokeStyle='#FFD700';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(420,120);ctx.lineTo(448,115);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(425,135);ctx.lineTo(448,132);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(418,148);ctx.lineTo(448,148);ctx.stroke();
+    drawText(ctx,408,126,'⚡','#FFD700','10px');
+    // DIFF 3: Fire exit blocked
+    drawRect(ctx,15,50,70,30,'#00AA00');drawText(ctx,20,70,'安全出口→','#fff','12px',true);
+    drawRect(ctx,20,82,35,30,'#8B6914');drawRect(ctx,22,84,31,26,'#7B5904');
+    drawRect(ctx,60,78,30,35,'#8B6914');drawRect(ctx,62,80,26,31,'#7B5904');
+    drawText(ctx,25,100,'杂物','#fff','6px',true);drawText(ctx,63,100,'纸箱','#fff','6px',true);
+    // DIFF 4: Chemical cabinet no labels
+    drawRect(ctx,350,250,80,50,'#8B4513');drawRect(ctx,355,255,70,40,'#A0522D');
+    drawText(ctx,362,268,'化学品柜','#fff','8px',true);
+    // No labels!
+    // DIFF 5: Fire ext expired
+    drawRect(ctx,487,232,16,30,'#CC0000');drawRect(ctx,485,228,20,6,'#999');drawCircle(ctx,495,229,3,'#333');
+    drawText(ctx,489,252,'过期','#e94560','6px',true);
+    ctx.strokeStyle='#e94560';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(487,266);ctx.lineTo(503,266);ctx.stroke();
+    drawRect(ctx,0,310,W,15,'#444');for(let x=0;x<W;x+=20){drawRect(ctx,x,310,10,15,'#555')}
+  }
+};
+
+// =========== LEVEL 3: OFFICE ===========
+const level3={
+  title:'🏢 场景三：办公室',
+  tip:'办公室安全不容忽视！电源排插不得串联使用，超负荷容易引发火灾。文件柜应固定在墙上防止倾倒。消防通道严禁堆放物品。下班时要关闭不用的电源，做到人走断电！',
+  diffs:[
+    {x:100,y:230,r:24,desc:'排插串联堆叠，超负荷隐患！',points:25},
+    {x:410,y:170,r:22,desc:'文件柜未固定，易倾倒伤人！',points:20},
+    {x:260,y:60,r:25,desc:'消防通道被桌椅杂物堵塞！',points:25},
+    {x:340,y:260,r:24,desc:'一个插座插了太多设备！',points:20},
+    {x:200,y:160,r:22,desc:'饮水机旁电线凌乱裸露！',points:20}
+  ],
+  drawSafe(ctx){
+    // Wall
+    drawRect(ctx,0,0,W,220,'#F5F0E8');drawGround(ctx,220,'#D2B48C');
+    // Windows
+    drawRect(ctx,50,30,120,80,'#87CEEB');ctx.strokeStyle='#8B7355';ctx.lineWidth=3;ctx.strokeRect(50,30,120,80);
+    ctx.beginPath();ctx.moveTo(110,30);ctx.lineTo(110,110);ctx.stroke();ctx.beginPath();ctx.moveTo(50,70);ctx.lineTo(170,70);ctx.stroke();
+    drawRect(ctx,350,30,120,80,'#87CEEB');ctx.strokeRect(350,30,120,80);
+    ctx.beginPath();ctx.moveTo(410,30);ctx.lineTo(410,110);ctx.stroke();ctx.beginPath();ctx.moveTo(350,70);ctx.lineTo(470,70);ctx.stroke();
+    // Desk 1
+    drawRect(ctx,40,185,160,10,'#8B6914');drawRect(ctx,50,195,8,30,'#7B5904');drawRect(ctx,185,195,8,30,'#7B5904');
+    // Single power strip (safe)
+    drawRect(ctx,90,192,40,8,'#333');drawText(ctx,100,200,'排插','#888','6px');
+    drawRect(ctx,96,198,5,5,'#888');drawRect(ctx,108,198,5,5,'#888');
+    // Laptop
+    drawRect(ctx,60,170,50,5,'#333');drawRect(ctx,62,150,46,22,'#444');drawRect(ctx,66,153,38,16,'#88CCFF');
+    // Person at desk
+    drawPerson(ctx,140,280,0.85,null,'#3366CC');
+    // Chair
+    drawRect(ctx,128,258,25,5,'#444');drawRect(ctx,133,263,5,15,'#444');drawRect(ctx,143,263,5,15,'#444');
+    // File cabinet (with wall bracket - fixed!)
+    drawRect(ctx,390,140,50,80,'#888');drawRect(ctx,393,145,44,70,'#999');
+    drawText(ctx,400,180,'文件','#fff','8px',true);drawText(ctx,400,192,'柜','#fff','8px',true);
+    // Wall bracket
+    ctx.strokeStyle='#666';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(395,140);ctx.lineTo(395,125);ctx.lineTo(420,125);ctx.lineTo(420,140);ctx.stroke();
+    drawRect(ctx,390,120,35,8,'#555');drawText(ctx,395,128,'L','#fff','6px',true);
+    // Fire exit (clear path)
+    drawRect(ctx,225,40,70,30,'#00AA00');drawText(ctx,230,60,'安全出口→','#fff','12px',true);
+    // Door frame
+    ctx.strokeStyle='#8B4513';ctx.lineWidth=3;ctx.strokeRect(225,70,70,150);drawRect(ctx,255,80,10,130,'#8B4513');
+    // Desk 2
+    drawRect(ctx,300,185,160,10,'#8B6914');drawRect(ctx,310,195,8,30,'#7B5904');drawRect(ctx,445,195,8,30,'#7B5904');
+    // Power strip (safe: only 2 plugs)
+    drawRect(ctx,330,192,40,8,'#333');drawText(ctx,340,200,'排插','#888','6px');
+    drawRect(ctx,336,198,5,5,'#888');drawRect(ctx,348,198,5,5,'#888');
+    // Monitor
+    drawRect(ctx,350,155,60,5,'#333');drawRect(ctx,352,135,56,22,'#222');drawRect(ctx,356,138,48,16,'#4488AA');
+    // Water dispenser (safe)
+    drawRect(ctx,175,160,30,60,'#DDD');drawRect(ctx,180,155,20,10,'#BBB');drawCircle(ctx,190,155,10,'#88CCEE');
+    drawText(ctx,183,195,'饮水','#888','6px');
+    // Fire extinguisher
+    drawFireExt(ctx,5,250);
+    // Potted plant
+    drawRect(ctx,260,265,30,5,'#8B4513');drawCircle(ctx,275,250,18,'#228B22');drawCircle(ctx,265,245,12,'#2E8B2E');drawCircle(ctx,285,248,10,'#2E8B2E');
+  },
+  drawDanger(ctx){
+    drawRect(ctx,0,0,W,220,'#F5F0E8');drawGround(ctx,220,'#D2B48C');
+    drawRect(ctx,50,30,120,80,'#87CEEB');ctx.strokeStyle='#8B7355';ctx.lineWidth=3;ctx.strokeRect(50,30,120,80);
+    ctx.beginPath();ctx.moveTo(110,30);ctx.lineTo(110,110);ctx.stroke();ctx.beginPath();ctx.moveTo(50,70);ctx.lineTo(170,70);ctx.stroke();
+    drawRect(ctx,350,30,120,80,'#87CEEB');ctx.strokeRect(350,30,120,80);
+    ctx.beginPath();ctx.moveTo(410,30);ctx.lineTo(410,110);ctx.stroke();ctx.beginPath();ctx.moveTo(350,70);ctx.lineTo(470,70);ctx.stroke();
+    drawRect(ctx,40,185,160,10,'#8B6914');drawRect(ctx,50,195,8,30,'#7B5904');drawRect(ctx,185,195,8,30,'#7B5904');
+    // DIFF 1: Stacked power strips
+    drawRect(ctx,85,185,40,8,'#333');drawRect(ctx,88,178,40,8,'#333');drawRect(ctx,91,171,40,8,'#333');
+    drawText(ctx,93,193,'⚠','#e94560','6px',true);
+    drawRect(ctx,91,174,5,4,'#888');drawRect(ctx,103,174,5,4,'#888');drawRect(ctx,115,174,5,4,'#888');
+    drawRect(ctx,88,181,5,4,'#888');drawRect(ctx,100,181,5,4,'#888');drawRect(ctx,112,181,5,4,'#888');
+    drawRect(ctx,85,188,5,4,'#888');drawRect(ctx,97,188,5,4,'#888');drawRect(ctx,109,188,5,4,'#888');
+    drawRect(ctx,60,170,50,5,'#333');drawRect(ctx,62,150,46,22,'#444');drawRect(ctx,66,153,38,16,'#88CCFF');
+    drawPerson(ctx,140,280,0.85,null,'#3366CC');
+    drawRect(ctx,128,258,25,5,'#444');drawRect(ctx,133,263,5,15,'#444');drawRect(ctx,143,263,5,15,'#444');
+    // DIFF 2: File cabinet NOT fixed
+    drawRect(ctx,390,140,50,80,'#888');drawRect(ctx,393,145,44,70,'#999');
+    drawText(ctx,400,180,'文件','#fff','8px',true);drawText(ctx,400,192,'柜','#fff','8px',true);
+    // No bracket!
+    drawText(ctx,400,136,'⚠','#e94560','10px',true);
+    // DIFF 3: Fire exit blocked
+    drawRect(ctx,225,40,70,30,'#00AA00');drawText(ctx,230,60,'安全出口→','#fff','12px',true);
+    ctx.strokeStyle='#8B4513';ctx.lineWidth=3;ctx.strokeRect(225,70,70,150);drawRect(ctx,255,80,10,130,'#8B4513');
+    // Boxes blocking
+    drawRect(ctx,230,80,20,25,'#8B6914');drawRect(ctx,232,82,16,21,'#7B5904');
+    drawRect(ctx,260,80,30,20,'#8B6914');drawRect(ctx,262,82,26,16,'#7B5904');
+    drawText(ctx,233,95,'杂物','#fff','5px');
+    drawRect(ctx,300,185,160,10,'#8B6914');drawRect(ctx,310,195,8,30,'#7B5904');drawRect(ctx,445,195,8,30,'#7B5904');
+    // DIFF 4: Overloaded outlet
+    drawRect(ctx,330,192,40,8,'#333');drawText(ctx,340,200,'排插','#888','6px');
+    drawRect(ctx,332,198,5,5,'#888');drawRect(ctx,340,198,5,5,'#888');drawRect(ctx,348,198,5,5,'#888');drawRect(ctx,356,198,5,5,'#888');drawRect(ctx,328,198,5,5,'#888');
+    drawText(ctx,338,178,'⚠超载','#e94560','7px',true);
+    drawRect(ctx,350,155,60,5,'#333');drawRect(ctx,352,135,56,22,'#222');drawRect(ctx,356,138,48,16,'#4488AA');
+    // DIFF 5: Messy wires near water dispenser
+    drawRect(ctx,175,160,30,60,'#DDD');drawRect(ctx,180,155,20,10,'#BBB');drawCircle(ctx,190,155,10,'#88CCEE');
+    drawText(ctx,183,195,'饮水','#888','6px');
+    ctx.strokeStyle='#333';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(205,190);ctx.quadraticCurveTo(215,205,210,220);ctx.quadraticCurveTo(205,230,215,240);ctx.stroke();
+    ctx.strokeStyle='#e94560';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(200,185);ctx.quadraticCurveTo(220,200,218,215);ctx.quadraticCurveTo(210,235,225,245);ctx.stroke();
+    drawText(ctx,195,175,'⚠','#e94560','8px',true);
+    drawFireExt(ctx,5,250);
+    drawRect(ctx,260,265,30,5,'#8B4513');drawCircle(ctx,275,250,18,'#228B22');drawCircle(ctx,265,245,12,'#2E8B2E');drawCircle(ctx,285,248,10,'#2E8B2E');
+  }
+};
+
+const levels=[level1,level2,level3];
+
+// =========== GAME LOGIC ===========
+function getCanvasScale(canvas){
+  return canvas.getBoundingClientRect().width/canvas.width;
+}
+
+function startGame(){
+  document.getElementById('startModal').classList.remove('active');
+  document.getElementById('startBtn').textContent='🎮 重新开始';
+  currentLevel=0;totalScore=0;hintsUsed=0;
+  loadLevel(0);
+}
+
+function loadLevel(idx){
+  if(idx>=levels.length){showComplete();return}
+  currentLevel=idx;foundCount=0;foundDiffs=[];
+  const level=levels[idx];
+  document.getElementById('sceneTitle').textContent=level.title;
+  document.getElementById('level').textContent=(idx+1)+'/3';
+  document.getElementById('found').textContent='0/5';
+  document.getElementById('score').textContent=totalScore;
+  document.getElementById('hintBtn').disabled=false;
+  document.getElementById('restartBtn').disabled=false;
+  document.getElementById('startBtn').disabled=false;
+  updateLevelProgress();
+  // Clear old markers
+  document.querySelectorAll('.found-marker,.wrong-marker,.desc-popup').forEach(e=>e.remove());
+  // Draw scenes
+  safeCtx.clearRect(0,0,W,H);dangerCtx.clearRect(0,0,W,H);
+  level.drawSafe(safeCtx);level.drawDanger(dangerCtx);
+  // Start timer
+  clearInterval(timerInterval);timeLeft=60;
+  document.getElementById('timer').textContent='60';
+  document.getElementById('timerBar').style.width='100%';
+  timerInterval=setInterval(()=>{
+    timeLeft--;
+    document.getElementById('timer').textContent=timeLeft;
+    document.getElementById('timerBar').style.width=(timeLeft/60*100)+'%';
+    if(timeLeft<=10){document.getElementById('timer').style.color='#e94560'}
+    if(timeLeft<=0){clearInterval(timerInterval);showFail()}
+  },1000);
+  document.getElementById('timer').style.color='#e94560';
+}
+
+function handleClick(e){
+  if(foundCount>=5||timeLeft<=0)return;
+  const canvas=dangerCanvas;
+  const rect=canvas.getBoundingClientRect();
+  const scale=getCanvasScale(canvas);
+  const clickX=(e.clientX-rect.left)/scale;
+  const clickY=(e.clientY-rect.top)/scale;
+  const level=levels[currentLevel];
+  let found=false;
+  for(let i=0;i<level.diffs.length;i++){
+    const d=level.diffs[i];
+    if(foundDiffs.includes(i))continue;
+    const dist=Math.sqrt((clickX-d.x)**2+(clickY-d.y)**2);
+    if(dist<=d.r){
+      foundCount++;totalScore+=d.points;foundDiffs.push(i);found=true;
+      document.getElementById('found').textContent=foundCount+'/5';
+      document.getElementById('score').textContent=totalScore;
+      showFoundMarker(d.x,d.y,d.r*scale,d.desc);
+      showFoundOnSafe(d,level);
+      if(foundCount>=5){clearInterval(timerInterval);setTimeout(()=>showWin(),800)}
+      break;
+    }
+  }
+  if(!found){showWrongMarker(clickX,clickY,scale)}
+}
+
+dangerCanvas.addEventListener('click',handleClick);
+// Touch support
+dangerCanvas.addEventListener('touchend',function(e){
+  e.preventDefault();
+  const touch=e.changedTouches[0];
+  handleClick({clientX:touch.clientX,clientY:touch.clientY});
+});
+
+function showFoundMarker(x,y,r,desc){
+  const panel=document.getElementById('dangerPanel');
+  const canvasRect=dangerCanvas.getBoundingClientRect();
+  const panelRect=panel.getBoundingClientRect();
+  const offsetX=canvasRect.left-panelRect.left+x*(canvasRect.width/W);
+  const offsetY=canvasRect.top-panelRect.top+y*(canvasRect.height/H);
+  const marker=document.createElement('div');
+  marker.className='found-marker';
+  marker.style.left=(offsetX-r)+'px';marker.style.top=(offsetY-r)+'px';
+  marker.style.width=(r*2)+'px';marker.style.height=(r*2)+'px';
+  panel.appendChild(marker);
+  setTimeout(()=>marker.remove(),1200);
+  // Description popup
+  const popup=document.createElement('div');
+  popup.className='desc-popup';
+  popup.textContent=desc;
+  popup.style.left=(offsetX+5)+'px';popup.style.top=(offsetY-10)+'px';
+  panel.appendChild(popup);
+  setTimeout(()=>popup.remove(),1500);
+}
+
+function showWrongMarker(x,y,scale){
+  const panel=document.getElementById('dangerPanel');
+  const canvasRect=dangerCanvas.getBoundingClientRect();
+  const panelRect=panel.getBoundingClientRect();
+  const offsetX=canvasRect.left-panelRect.left+x*(canvasRect.width/W);
+  const offsetY=canvasRect.top-panelRect.top+y*(canvasRect.height/H);
+  const marker=document.createElement('div');
+  marker.className='wrong-marker';
+  marker.style.left=(offsetX-15)+'px';marker.style.top=(offsetY-15)+'px';
+  marker.style.width='30px';marker.style.height='30px';
+  panel.appendChild(marker);
+  setTimeout(()=>marker.remove(),800);
+}
+
+function showFoundOnSafe(diff,level){
+  // Mark on safe canvas too
+  safeCtx.save();
+  safeCtx.strokeStyle='#00ff88';safeCtx.lineWidth=3;safeCtx.setLineDash([5,3]);
+  safeCtx.beginPath();safeCtx.arc(diff.x,diff.y,diff.r,0,Math.PI*2);safeCtx.stroke();
+  safeCtx.setLineDash([]);
+  safeCtx.fillStyle='rgba(0,255,136,0.15)';safeCtx.beginPath();safeCtx.arc(diff.x,diff.y,diff.r,0,Math.PI*2);safeCtx.fill();
+  safeCtx.fillStyle='#00ff88';safeCtx.font='bold 11px Microsoft YaHei,sans-serif';
+  safeCtx.fillText('✓',diff.x-4,diff.y+4);
+  safeCtx.restore();
+}
+
+function useHint(){
+  if(hintsUsed>=3)return;
+  const level=levels[currentLevel];
+  for(let i=0;i<level.diffs.length;i++){
+    if(!foundDiffs.includes(i)){
+      const d=level.diffs[i];
+      const scale=getCanvasScale(dangerCanvas);
+      // Flash hint on danger canvas
+      dangerCtx.save();
+      dangerCtx.strokeStyle='rgba(255,215,0,0.8)';dangerCtx.lineWidth=3;dangerCtx.setLineDash([8,4]);
+      dangerCtx.beginPath();dangerCtx.arc(d.x,d.y,d.r+5,0,Math.PI*2);dangerCtx.stroke();
+      dangerCtx.setLineDash([]);
+      dangerCtx.fillStyle='rgba(255,215,0,0.2)';dangerCtx.beginPath();dangerCtx.arc(d.x,d.y,d.r+5,0,Math.PI*2);dangerCtx.fill();
+      dangerCtx.restore();
+      totalScore=Math.max(0,totalScore-50);hintsUsed++;
+      document.getElementById('score').textContent=totalScore;
+      setTimeout(()=>{
+        const level2=levels[currentLevel];
+        level2.drawDanger(dangerCtx);
+        foundDiffs.forEach(fi=>{showFoundOnSafe(level2.diffs[fi],level2)});
+      },2000);
+      break;
+    }
+  }
+  if(hintsUsed>=3)document.getElementById('hintBtn').disabled=true;
+}
+
+function showWin(){
+  const level=levels[currentLevel];
+  let foundDescs=foundDiffs.map(i=>level.diffs[i].desc).join('\n');
+  document.getElementById('winText').innerHTML='你成功找出了所有 <b>5处</b> 安全隐患！<br>本关得分：+'+(foundDiffs.reduce((s,i)=>s+level.diffs[i].points,0))+'分';
+  document.getElementById('safetyTip').textContent=level.tip;
+  const btn=document.getElementById('nextBtn');
+  btn.textContent=currentLevel<levels.length-1?'下一关 →':'🏆 查看总分';
+  document.getElementById('winModal').classList.add('active');
+}
+
+function showFail(){
+  const level=levels[currentLevel];
+  let missed=level.diffs.map((d,i)=>foundDiffs.includes(i)?'':'❌ '+d.desc).filter(Boolean).join('<br>');
+  document.getElementById('failText').innerHTML='还有 <b>'+(5-foundCount)+'</b> 处隐患未找到！<br><br><div class="missed-list">'+missed+'</div>';
+  document.getElementById('failTip').textContent=level.tip;
+  document.getElementById('failModal').classList.add('active');
+}
+
+function showComplete(){
+  let grade=totalScore>=300?'🏆 安全达人':totalScore>=200?'🥈 安全卫士':'🥉 安全文盲';
+  document.getElementById('completeText').innerHTML=grade+'<br><br>总得分：<b style="color:#ffd700;font-size:28px">'+totalScore+'</b> / 350<br><br>'+(totalScore>=300?'你对安全知识掌握得很好，继续保持！':totalScore>=200?'还不错，但还有提升空间，安全知识要常学常新！':'要重视安全知识学习哦，安全无小事！');
+  document.getElementById('completeModal').classList.add('active');
+}
+
+function nextLevel(){
+  document.getElementById('winModal').classList.remove('active');
+  if(currentLevel<levels.length-1)loadLevel(currentLevel+1);
+  else showComplete();
+}
+
+function retryLevel(){
+  document.getElementById('failModal').classList.remove('active');
+  loadLevel(currentLevel);
+}
+
+function restartLevel(){
+  totalScore-=foundDiffs.reduce((s,i)=>s+levels[currentLevel].diffs[i].points,0);
+  totalScore=Math.max(0,totalScore);
+  loadLevel(currentLevel);
+}
+
+function restartAll(){
+  document.getElementById('completeModal').classList.remove('active');
+  document.getElementById('winModal').classList.remove('active');
+  totalScore=0;currentLevel=0;
+  loadLevel(0);
+}
+
+function updateLevelProgress(){
+  const dots=document.querySelectorAll('.level-dot');
+  dots.forEach((dot,i)=>{
+    dot.className='level-dot';
+    if(i<currentLevel)dot.classList.add('completed');
+    if(i===currentLevel)dot.classList.add('current');
+  });
+}
+
+// Init: draw placeholder
+safeCtx.fillStyle='#222';safeCtx.fillRect(0,0,W,H);
+dangerCtx.fillStyle='#222';dangerCtx.fillRect(0,0,W,H);
+drawText(safeCtx,W/2-60,H/2,'✅ 安全示范图','#555','14px',true);
+drawText(dangerCtx,W/2-60,H/2,'🔍 找出隐患图','#555','14px',true);
+</script>
+</body>
+</html>
